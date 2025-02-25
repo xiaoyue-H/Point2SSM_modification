@@ -1,10 +1,8 @@
 chamfer3D.cu
 chamfer_cuda.cpp
 setup.py
-/home/sci/jadie/Point2SSM/utils/ChamferDistancePytorch/chamfer3D/chamfer3D.cu
-/home/sci/jadie/Point2SSM/utils/ChamferDistancePytorch/chamfer3D/chamfer_cuda.cpp
-/home/sci/jadie/PointCloudSSM/utils/ChamferDistancePytorch/chamfer3D/chamfer3D.cu
-/home/sci/jadie/PointCloudSSM/utils/ChamferDistancePytorch/chamfer3D/chamfer_cuda.cpp
+/home/xiaoyue/point2ssm/Point2SSM_modification/utils/ChamferDistancePytorch/chamfer3D/chamfer3D.cu
+/home/xiaoyue/point2ssm/Point2SSM_modification/utils/ChamferDistancePytorch/chamfer3D/chamfer_cuda.cpp
 chamfer_3D.egg-info/PKG-INFO
 chamfer_3D.egg-info/SOURCES.txt
 chamfer_3D.egg-info/dependency_links.txt
