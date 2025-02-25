@@ -4,6 +4,7 @@ import torch.utils.data as data
 import numpy as np
 import pyvista as pv
 import random
+import matplotlib.pyplot as plt
 
 from utils.model_utils import calc_cd
 import pointnet2_cuda as pointnet2
@@ -11,7 +12,8 @@ import pointnet2_cuda as pointnet2
 class MeshDataset(data.Dataset):
     def __init__(self, args, set_type='test', scale_factor=None):
         self.num_points = args.num_input_points
-        self.mesh_dir = os.path.join('data', args.dataset, set_type+'_meshes/')
+        # self.mesh_dir = os.path.join('data', args.dataset, set_type+'_meshes/')
+        self.mesh_dir = os.path.join('/home/xiaoyue/shapenet', args.dataset)
         self.missing_percent = args.missing_percent
         self.noise_level = args.noise_level
         if self.noise_level== None or self.noise_level==0:
@@ -26,14 +28,34 @@ class MeshDataset(data.Dataset):
         
         calc_scale_factor = 0
         min_points = 1e8
-        for file in sorted(os.listdir(self.mesh_dir)):
-            points = np.array(pv.read(self.mesh_dir+file).points)
-            if np.max(np.abs(points)) > calc_scale_factor:
-                calc_scale_factor = np.max(np.abs(points))
-            if points.shape[0] < min_points:
-                min_points = points.shape[0]
+        # for file in sorted(os.listdir(self.mesh_dir)):
+        #     points = np.array(pv.read(self.mesh_dir+file).points)
+        #     if np.max(np.abs(points)) > calc_scale_factor:
+        #         calc_scale_factor = np.max(np.abs(points))
+        #     if points.shape[0] < min_points:
+        #         min_points = points.shape[0]
+        #     self.point_sets.append(points)
+        #     self.names.append(file.replace(".vtk",""))
+        # self.min_points = min_points
+        # 遍历 dataset 目录下的所有子目录
+        for subdir in sorted(os.listdir(self.mesh_dir)):
+            obj_path = os.path.join(self.mesh_dir, subdir, "models/model_normalized.obj")
+            # print(f"path:{obj_path}")
+            if not os.path.exists(obj_path):
+                continue  # 跳过没有 obj 文件的子目录
+
+            points = self.load_obj(obj_path)  # 读取 .obj 文件
+
+            if points.shape[0] == 0:
+                continue  # 跳过空文件
+
+            # 计算 scale_factor
+            calc_scale_factor = max(calc_scale_factor, np.max(np.abs(points)))
+            min_points = min(min_points, points.shape[0])
+
             self.point_sets.append(points)
-            self.names.append(file.replace(".vtk",""))
+            self.names.append(subdir)  # 使用子目录名作为 name
+        # print(f"✅ 读取到 {len(self.point_sets)} 个点云文件")
         self.min_points = min_points
 
         if not scale_factor:
@@ -41,20 +63,56 @@ class MeshDataset(data.Dataset):
         else:
             self.scale_factor = scale_factor
 
-        if self.subsample != None and set_type=='train':
-            if os.path.exists(self.mesh_dir + "../importance_sampling_indices.npy"):
-                print("Using importance sampling.")
-                sorted_indices = np.load(self.mesh_dir + "../importance_sampling_indices.npy")
-                indices = sorted_indices[:int(self.subsample)]
-                pts, nms = [], []
-                for index in indices:
-                    pts.append(self.point_sets[index])
-                    nms.append(self.names[index])
-            else:
-                pts, nms = self.point_sets[:int(self.subsample)], self.names[:int(self.subsample)]
-            self.point_sets = pts
-            self.names = nms
-            
+        # if self.subsample != None and set_type=='train':
+        #     if os.path.exists(self.mesh_dir + "../importance_sampling_indices.npy"):
+        #         print("Using importance sampling.")
+        #         sorted_indices = np.load(self.mesh_dir + "../importance_sampling_indices.npy")
+        #         indices = sorted_indices[:int(self.subsample)]
+        #         pts, nms = [], []
+        #         for index in indices:
+        #             pts.append(self.point_sets[index])
+        #             nms.append(self.names[index])
+        #     else:
+        #         pts, nms = self.point_sets[:int(self.subsample)], self.names[:int(self.subsample)]
+        #     self.point_sets = pts
+        #     self.names = nms
+
+    def load_obj(self, file_path):
+        """ 读取 .obj 文件中的点云数据 """
+        points = []
+        try:
+            with open(file_path, 'r') as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if len(parts) < 4:
+                        continue  # 忽略格式不正确的行
+
+                    if parts[0] == 'v':  # 只读取顶点数据
+                        try:
+                            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                            points.append([x, y, z])
+                        except ValueError:
+                            print(f"⚠️ 无效的点数据: {line}")
+                            continue
+
+            points = np.array(points, dtype=np.float32)
+            # 可视化点云
+            # fig = plt.figure(figsize=(8, 6))
+            # ax = fig.add_subplot(111, projection='3d')
+            #
+            # ax.scatter(points[:, 0], points[:, 1], points[:, 2], c='b', marker='o', s=1)  # 蓝色小点
+            # ax.set_xlabel('X')
+            # ax.set_ylabel('Y')
+            # ax.set_zlabel('Z')
+            # ax.set_title('Point Cloud Visualization (Matplotlib)')
+            #
+            # plt.show()
+            return np.array(points)
+        except Exception as e:
+            print(f"❌ 读取 {file_path} 失败: {e}")
+            return None
+
+
     def get_scale_factor(self):
         return self.scale_factor
 

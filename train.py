@@ -35,8 +35,10 @@ def train():
         dataset_test = DPC_Dataset(args, 'val', scale_factor=scale_factor, ref_path=args.ref_path)
     else:
         dataset = MeshDataset(args, 'train')
+        print(f"数据集大小: {len(dataset)}")
         scale_factor = dataset.get_scale_factor()
         dataset_test = MeshDataset(args, 'val', scale_factor=scale_factor)
+        print(f"数据集大小: {len(dataset_test)}")
     
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=int(args.workers))
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=int(args.workers))
