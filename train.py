@@ -14,6 +14,7 @@ import torch.optim as optim
 import warnings
 import shutil
 import subprocess
+import wandb
 
 warnings.filterwarnings("ignore")
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -23,6 +24,16 @@ from dataset import MeshDataset, DPC_Dataset
 from utils.train_utils import *
 
 def train():
+    #######################################
+    # wandb init()
+    wandb.init(
+        project="Point2SSM",  # 项目名称
+        entity="jerryhu0209-technical-university-of-munich", # Team名称
+        name="wandb_demo_and_mug_overfit",  # 实验名称
+        config=args  # 超参数
+    )
+    #######################################
+
     logging.info(str(args))
     metrics = ['cd_p', 'cd_t']
     best_epoch_losses = {m: (0, 0) if m == 'f1' else (0, math.inf) for m in metrics}
@@ -41,9 +52,11 @@ def train():
         print(f"数据集大小: {len(dataset_test)}")
     
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=int(args.workers))
+    breakpoint()
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=int(args.workers))
     logging.info('Length of train dataset:%d', len(dataset))
     logging.info('Length of test dataset:%d', len(dataset_test))
+    # breakpoint()
 
     if not args.manual_seed:
         seed = random.randint(1, 10000)
@@ -121,6 +134,15 @@ def train():
             train_loss_meter.update(loss.mean().item())
             loss.backward()
             optimizer.step()
+            #################################################
+            # wandb train loss
+            wandb.log({
+                "train_loss": loss.mean().item(),
+                "epoch": epoch,
+                "batch": i,
+                "lr": lr
+            })
+            #################################################
 
             if i % args.step_interval_to_print == 0:
                 logging.info(exp_name + ' train [%d: %d/%d]  loss_type: %s, loss: %f lr: %f' %
@@ -171,7 +193,14 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
 
             for k, v in val_loss_meters.items():
                 v.update(result_dict[k].mean().item())
-
+        #######################################################
+        # wandb val loss
+        wandb.log({
+            "val_cd_p": val_loss_meters["cd_p"].avg,
+            "val_cd_t": val_loss_meters["cd_t"].avg,
+            "epoch": curr_epoch_num
+        })
+        #######################################################
         fmt = 'best_%s: %f [epoch %d]; '
         best_log = ''
         for loss_type, (curr_best_epoch, curr_best_loss) in best_epoch_losses.items():

@@ -4,7 +4,11 @@ import torch.utils.data as data
 import numpy as np
 import pyvista as pv
 import random
+import trimesh
 import matplotlib.pyplot as plt
+import wandb
+import plotly.tools as tls
+import plotly.graph_objects as go
 
 from utils.model_utils import calc_cd
 import pointnet2_cuda as pointnet2
@@ -37,25 +41,92 @@ class MeshDataset(data.Dataset):
         #     self.point_sets.append(points)
         #     self.names.append(file.replace(".vtk",""))
         # self.min_points = min_points
-        # 遍历 dataset 目录下的所有子目录
+        ############################################################################################
         for subdir in sorted(os.listdir(self.mesh_dir)):
             obj_path = os.path.join(self.mesh_dir, subdir, "models/model_normalized.obj")
-            # print(f"path:{obj_path}")
-            if not os.path.exists(obj_path):
-                continue  # 跳过没有 obj 文件的子目录
+            mesh = trimesh.load_mesh(obj_path)
 
-            points = self.load_obj(obj_path)  # 读取 .obj 文件
+            # Step 1: 在表面均匀采样 num_points 个点
+            points = mesh.sample(self.num_points)
+            # print(points.shape)
+            # breakpoint()
 
             if points.shape[0] == 0:
                 continue  # 跳过空文件
 
+            points = np.array(points, dtype=np.float32)
+            ############################################################################
+            # 可视化点云
+            if set_type == 'train':
+                # 本来想用matplotlib形式，但我不知道为什么报错，所以先改用plotly(改回matplotlib静态图片尝试)
+                fig = plt.figure(figsize=(8, 6))
+                ax = fig.add_subplot(111, projection='3d')
+
+                ax.scatter(points[:, 0], points[:, 1], points[:, 2], c='b', marker='o', s=100)  # 蓝色小点
+                ax.set_xlabel('X')
+                ax.set_ylabel('Y')
+                ax.set_zlabel('Z')
+                ax.set_title(f'Point Cloud: {subdir}')
+
+                wandb.log({"Train Point Cloud": wandb.Image(fig, caption=subdir)})
+                # plotly_fig = tls.mpl_to_plotly(fig)
+                # wandb.log({"Train Point Cloud": wandb.Plotly(plotly_fig)})
+                #
+                # plt.show()
+                plt.close(fig)
+
+                # TODO plotly 似乎也不能正确显示
+                # scatter = go.Scatter3d(
+                #     x=points[:, 0], y=points[:, 1], z=points[:, 2],
+                #     mode='markers',
+                #     marker=dict(size=2, color='blue', opacity=0.8)  # 透明度 0.8 让点云更清晰
+                # )
+                #
+                # # 创建交互式 Figure
+                # plotly_fig = go.Figure(data=[scatter])
+                # plotly_fig.update_layout(
+                #     title=f'Point Cloud: {subdir}',
+                #     scene=dict(
+                #         xaxis_title="X",
+                #         yaxis_title="Y",
+                #         zaxis_title="Z",
+                #         aspectmode='data'  # 保持 x/y/z 轴比例一致
+                #     )
+                # )
+                #
+                # # 记录到 wandb
+                # wandb.log({"Train Point Cloud": wandb.Plotly(plotly_fig)})
+                #
+                # breakpoint()
+            ############################################################################
             # 计算 scale_factor
             calc_scale_factor = max(calc_scale_factor, np.max(np.abs(points)))
             min_points = min(min_points, points.shape[0])
 
             self.point_sets.append(points)
-            self.names.append(subdir)  # 使用子目录名作为 name
+            self.names.append(subdir)
+        ##########################################################################################
+        # 遍历 dataset 目录下的所有子目录
+        # TODO 旧方法，只取 verticies 应当被弃用
+        # for subdir in sorted(os.listdir(self.mesh_dir)):
+        #     obj_path = os.path.join(self.mesh_dir, subdir, "models/model_normalized.obj")
+        #     # print(f"path:{obj_path}")
+        #     if not os.path.exists(obj_path):
+        #         continue  # 跳过没有 obj 文件的子目录
+        #
+        #     points = self.load_obj(obj_path)  # 读取 .obj 文件
+        #
+        #     if points.shape[0] == 0:
+        #         continue  # 跳过空文件
+        #
+        #     # 计算 scale_factor
+        #     calc_scale_factor = max(calc_scale_factor, np.max(np.abs(points)))
+        #     min_points = min(min_points, points.shape[0])
+        #
+        #     self.point_sets.append(points)
+        #     self.names.append(subdir)  # 使用子目录名作为 name
         # print(f"✅ 读取到 {len(self.point_sets)} 个点云文件")
+        ###########################################################################################
         self.min_points = min_points
 
         if not scale_factor:

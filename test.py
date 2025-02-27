@@ -9,6 +9,8 @@ import numpy as np
 import torch
 from torchsummary import summary
 import warnings
+import wandb
+import matplotlib.pyplot as plt
 warnings.filterwarnings("ignore")
 
 from dataset import MeshDataset, DPC_Dataset
@@ -65,6 +67,30 @@ def test(test_set):
 
             if args.save_predictions:
                 for j in range(len(names)):
+                    #############################################################
+                    wandb.init(
+                        project="Point2SSM",  # 项目名称
+                        entity="jerryhu0209-technical-university-of-munich",  # Team名称
+                        name="network_output",  # 实验名称
+                    )
+                    points = result_dict['recon'][j].cpu().numpy() * args.scale_factor
+                    points = np.array(points, dtype=np.float32)
+                    fig = plt.figure(figsize=(8, 6))
+                    ax = fig.add_subplot(111, projection='3d')
+
+                    ax.scatter(points[:, 0], points[:, 1], points[:, 2], c='b', marker='o', s=1)  # 蓝色小点
+                    ax.set_xlabel('X')
+                    ax.set_ylabel('Y')
+                    ax.set_zlabel('Z')
+                    ax.set_title(f'Point Cloud: {names[j]}')
+
+                    wandb.log({"Train Point Cloud": wandb.Image(fig, caption=names[j])})
+                    # plotly_fig = tls.mpl_to_plotly(fig)
+                    # wandb.log({"Train Point Cloud": wandb.Plotly(plotly_fig)})
+                    #
+                    # plt.show()
+                    plt.close(fig)
+                    #############################################################
                     np.savetxt(os.path.join(save_output_path, names[j]+'.particles'), result_dict['recon'][j].cpu().numpy()*args.scale_factor)
                     np.savetxt(os.path.join(save_input_path, names[j]+'.particles'), inputs[j].cpu().numpy()*args.scale_factor)
                     np.savetxt(os.path.join(save_gt_path, names[j]+'.particles'), gt[j].cpu().numpy()*args.scale_factor)
