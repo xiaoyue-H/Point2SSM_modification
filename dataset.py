@@ -57,23 +57,37 @@ class MeshDataset(data.Dataset):
             points = np.array(points, dtype=np.float32)
             ############################################################################
             # 可视化点云
-            if set_type == 'train':
+            if set_type == 'xiba':
                 # 本来想用matplotlib形式，但我不知道为什么报错，所以先改用plotly(改回matplotlib静态图片尝试)
                 fig = plt.figure(figsize=(8, 6))
                 ax = fig.add_subplot(111, projection='3d')
 
-                ax.scatter(points[:, 0], points[:, 1], points[:, 2], c='b', marker='o', s=100)  # 蓝色小点
+                ax.scatter(points[:, 0], points[:, 1], points[:, 2], c=self.normalize_coordinates_to_rgb(points), marker='o', s=100)  # 蓝色小点
                 ax.set_xlabel('X')
                 ax.set_ylabel('Y')
                 ax.set_zlabel('Z')
                 ax.set_title(f'Point Cloud: {subdir}')
+                x_min, x_max = np.min(points[:, 0]), np.max(points[:, 0])
+                y_min, y_max = np.min(points[:, 1]), np.max(points[:, 1])
+                z_min, z_max = np.min(points[:, 2]), np.max(points[:, 2])
 
-                wandb.log({"Train Point Cloud": wandb.Image(fig, caption=subdir)})
+                max_range = max(x_max - x_min, y_max - y_min, z_max - z_min) / 2.0
+
+                mid_x = (x_max + x_min) / 2.0
+                mid_y = (y_max + y_min) / 2.0
+                mid_z = (z_max + z_min) / 2.0
+
+                ax.set_xlim(mid_x - max_range, mid_x + max_range)
+                ax.set_ylim(mid_y - max_range, mid_y + max_range)
+                ax.set_zlim(mid_z - max_range, mid_z + max_range)
+                ax.set_box_aspect([1, 1, 1])
+
+                # wandb.log({"Train Point Cloud": wandb.Image(fig, caption=subdir)})
                 # plotly_fig = tls.mpl_to_plotly(fig)
                 # wandb.log({"Train Point Cloud": wandb.Plotly(plotly_fig)})
                 #
-                # plt.show()
-                plt.close(fig)
+                plt.show()
+                # plt.close(fig)
 
                 # TODO plotly 似乎也不能正确显示
                 # scatter = go.Scatter3d(
@@ -147,6 +161,14 @@ class MeshDataset(data.Dataset):
         #         pts, nms = self.point_sets[:int(self.subsample)], self.names[:int(self.subsample)]
         #     self.point_sets = pts
         #     self.names = nms
+
+    def normalize_coordinates_to_rgb(self, data):
+        # 归一化处理，保证每个点的坐标都在 [0, 1] 范围内
+        min_vals = np.min(data, axis=0)
+        max_vals = np.max(data, axis=0)
+        normalized = (data - min_vals) / (max_vals - min_vals)
+        # 将归一化后的数据映射为 RGB 值
+        return normalized
 
     def load_obj(self, file_path):
         """ 读取 .obj 文件中的点云数据 """

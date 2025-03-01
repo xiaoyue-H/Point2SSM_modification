@@ -15,6 +15,8 @@ import warnings
 import shutil
 import subprocess
 import wandb
+import numpy as np
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings("ignore")
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -25,11 +27,11 @@ from utils.train_utils import *
 
 def train():
     #######################################
-    # wandb init()
+    # wandb init() 初始化
     wandb.init(
         project="Point2SSM",  # 项目名称
         entity="jerryhu0209-technical-university-of-munich", # Team名称
-        name="wandb_demo_and_mug_overfit",  # 实验名称
+        name="train_process_visualize",  # 实验名称
         config=args  # 超参数
     )
     #######################################
@@ -52,7 +54,7 @@ def train():
         print(f"数据集大小: {len(dataset_test)}")
     
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=int(args.workers))
-    breakpoint()
+    # breakpoint()
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=args.batch_size, shuffle=False, num_workers=int(args.workers))
     logging.info('Length of train dataset:%d', len(dataset))
     logging.info('Length of test dataset:%d', len(dataset_test))
@@ -179,6 +181,11 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
     net.eval()
 
     with torch.no_grad():
+        ######################################################
+        random_sample = None  # 用于存储随机样本
+        random_recon = None  # 用于存储该样本的网络输出
+        random_name = None
+        ######################################################
         for i, data in enumerate(dataloader_test):
             if args.model_name[:3] == 'dpc':
                 pc, ref, gt, names = data
@@ -193,6 +200,12 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
 
             for k, v in val_loss_meters.items():
                 v.update(result_dict[k].mean().item())
+
+                if random_sample is None:
+                    my_int = random.randint(0, 5)
+                    random_sample = pc[my_int].cpu().numpy()  # 原始点云
+                    random_recon = result_dict["recon"][my_int].cpu().numpy()  # 生成的点云
+                    random_name = names[my_int]  # 记录名称
         #######################################################
         # wandb val loss
         wandb.log({
@@ -200,6 +213,65 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
             "val_cd_t": val_loss_meters["cd_t"].avg,
             "epoch": curr_epoch_num
         })
+        #######################################################
+        #######################################################
+
+        # ✅ 如果有选取的随机样本，则进行可视化
+        if random_sample is not None:
+            fig = plt.figure(figsize=(12, 6))
+
+            # 原始点云
+            ax1 = fig.add_subplot(121, projection='3d')
+            color1 = normalize_coordinates_to_rgb(random_sample)
+            ax1.scatter(random_sample[:, 0], random_sample[:, 1], random_sample[:, 2], c=color1, marker='o', s=100)
+            ax1.set_title(f'Original: {random_name}')
+            ax1.set_xlabel('X')
+            ax1.set_ylabel('Y')
+            ax1.set_zlabel('Z')
+            x_min, x_max = np.min(random_sample[:, 0]), np.max(random_sample[:, 0])
+            y_min, y_max = np.min(random_sample[:, 1]), np.max(random_sample[:, 1])
+            z_min, z_max = np.min(random_sample[:, 2]), np.max(random_sample[:, 2])
+
+            max_range = max(x_max - x_min, y_max - y_min, z_max - z_min) / 2.0
+
+            mid_x = (x_max + x_min) / 2.0
+            mid_y = (y_max + y_min) / 2.0
+            mid_z = (z_max + z_min) / 2.0
+
+            ax1.set_xlim(mid_x - max_range, mid_x + max_range)
+            ax1.set_ylim(mid_y - max_range, mid_y + max_range)
+            ax1.set_zlim(mid_z - max_range, mid_z + max_range)
+            ax1.set_box_aspect([1, 1, 1])
+
+            # 生成点云
+            ax2 = fig.add_subplot(122, projection='3d')
+            ax2.scatter(random_recon[:, 0], random_recon[:, 1], random_recon[:, 2], c=color1, marker='o', s=100)
+            ax2.set_title(f'Reconstructed: {random_name}')
+            ax2.set_xlabel('X')
+            ax2.set_ylabel('Y')
+            ax2.set_zlabel('Z')
+            x_min, x_max = np.min(random_recon[:, 0]), np.max(random_recon[:, 0])
+            y_min, y_max = np.min(random_recon[:, 1]), np.max(random_recon[:, 1])
+            z_min, z_max = np.min(random_recon[:, 2]), np.max(random_recon[:, 2])
+
+            max_range = max(x_max - x_min, y_max - y_min, z_max - z_min) / 2.0
+
+            mid_x = (x_max + x_min) / 2.0
+            mid_y = (y_max + y_min) / 2.0
+            mid_z = (z_max + z_min) / 2.0
+
+            ax2.set_xlim(mid_x - max_range, mid_x + max_range)
+            ax2.set_ylim(mid_y - max_range, mid_y + max_range)
+            ax2.set_zlim(mid_z - max_range, mid_z + max_range)
+            ax2.set_box_aspect([1, 1, 1])
+
+            plt.tight_layout()
+
+            # ✅ 记录到 wandb
+            wandb.log({"Validation Point Clouds": wandb.Image(fig)})
+
+            # 关闭 Matplotlib 避免内存泄漏
+            plt.close(fig)
         #######################################################
         fmt = 'best_%s: %f [epoch %d]; '
         best_log = ''
@@ -223,6 +295,13 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
         logging.info(best_log)
     return best_cd_t
 
+def normalize_coordinates_to_rgb(data):
+    # 归一化处理，保证每个点的坐标都在 [0, 1] 范围内
+    min_vals = np.min(data, axis=0)
+    max_vals = np.max(data, axis=0)
+    normalized = (data - min_vals) / (max_vals - min_vals)
+    # 将归一化后的数据映射为 RGB 值
+    return normalized
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train config file')
