@@ -202,10 +202,12 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
                 v.update(result_dict[k].mean().item())
 
                 if random_sample is None:
-                    my_int = random.randint(0, 5)
-                    random_sample = pc[my_int].cpu().numpy()  # 原始点云
-                    random_recon = result_dict["recon"][my_int].cpu().numpy()  # 生成的点云
-                    random_name = names[my_int]  # 记录名称
+                    random_numbers = random.sample(range(0, 5 + 1), 2)
+                    random_sample = pc[random_numbers[0]].cpu().numpy()  # 原始点云
+                    random_recon1 = result_dict["recon"][random_numbers[0]].cpu().numpy()  # 生成的点云
+                    random_name1 = names[random_numbers[0]]  # 记录名称
+                    random_recon2 = result_dict["recon"][random_numbers[1]].cpu().numpy()  # 生成的点云
+                    random_name2 = names[random_numbers[1]]  # 记录名称
         #######################################################
         # wandb val loss
         wandb.log({
@@ -218,13 +220,13 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
 
         # ✅ 如果有选取的随机样本，则进行可视化
         if random_sample is not None:
-            fig = plt.figure(figsize=(12, 6))
+            fig = plt.figure(figsize=(18, 6))
 
             # 原始点云
-            ax1 = fig.add_subplot(121, projection='3d')
+            ax1 = fig.add_subplot(131, projection='3d')
             color1 = normalize_coordinates_to_rgb(random_sample)
             ax1.scatter(random_sample[:, 0], random_sample[:, 1], random_sample[:, 2], c=color1, marker='o', s=100)
-            ax1.set_title(f'Original: {random_name}')
+            ax1.set_title(f'Original: {random_name1}')
             ax1.set_xlabel('X')
             ax1.set_ylabel('Y')
             ax1.set_zlabel('Z')
@@ -244,15 +246,16 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
             ax1.set_box_aspect([1, 1, 1])
 
             # 生成点云
-            ax2 = fig.add_subplot(122, projection='3d')
-            ax2.scatter(random_recon[:, 0], random_recon[:, 1], random_recon[:, 2], c=color1, marker='o', s=100)
-            ax2.set_title(f'Reconstructed: {random_name}')
+            ax2 = fig.add_subplot(132, projection='3d')
+            color2 = normalize_coordinates_to_rgb(random_recon1)
+            ax2.scatter(random_recon1[:, 0], random_recon1[:, 1], random_recon1[:, 2], c=color2, marker='o', s=100)
+            ax2.set_title(f'Reconstructed: {random_name1}')
             ax2.set_xlabel('X')
             ax2.set_ylabel('Y')
             ax2.set_zlabel('Z')
-            x_min, x_max = np.min(random_recon[:, 0]), np.max(random_recon[:, 0])
-            y_min, y_max = np.min(random_recon[:, 1]), np.max(random_recon[:, 1])
-            z_min, z_max = np.min(random_recon[:, 2]), np.max(random_recon[:, 2])
+            x_min, x_max = np.min(random_recon1[:, 0]), np.max(random_recon1[:, 0])
+            y_min, y_max = np.min(random_recon1[:, 1]), np.max(random_recon1[:, 1])
+            z_min, z_max = np.min(random_recon1[:, 2]), np.max(random_recon1[:, 2])
 
             max_range = max(x_max - x_min, y_max - y_min, z_max - z_min) / 2.0
 
@@ -264,6 +267,28 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
             ax2.set_ylim(mid_y - max_range, mid_y + max_range)
             ax2.set_zlim(mid_z - max_range, mid_z + max_range)
             ax2.set_box_aspect([1, 1, 1])
+
+            # 生成点云
+            ax3 = fig.add_subplot(133, projection='3d')
+            ax3.scatter(random_recon2[:, 0], random_recon2[:, 1], random_recon2[:, 2], c=color2, marker='o', s=100)
+            ax3.set_title(f'Reconstructed: {random_name2}')
+            ax3.set_xlabel('X')
+            ax3.set_ylabel('Y')
+            ax3.set_zlabel('Z')
+            x_min, x_max = np.min(random_recon2[:, 0]), np.max(random_recon2[:, 0])
+            y_min, y_max = np.min(random_recon2[:, 1]), np.max(random_recon2[:, 1])
+            z_min, z_max = np.min(random_recon2[:, 2]), np.max(random_recon2[:, 2])
+
+            max_range = max(x_max - x_min, y_max - y_min, z_max - z_min) / 2.0
+
+            mid_x = (x_max + x_min) / 2.0
+            mid_y = (y_max + y_min) / 2.0
+            mid_z = (z_max + z_min) / 2.0
+
+            ax3.set_xlim(mid_x - max_range, mid_x + max_range)
+            ax3.set_ylim(mid_y - max_range, mid_y + max_range)
+            ax3.set_zlim(mid_z - max_range, mid_z + max_range)
+            ax3.set_box_aspect([1, 1, 1])
 
             plt.tight_layout()
 
