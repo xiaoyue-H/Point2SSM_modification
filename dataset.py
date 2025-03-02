@@ -16,6 +16,7 @@ import pointnet2_cuda as pointnet2
 class MeshDataset(data.Dataset):
     def __init__(self, args, set_type='test', scale_factor=None):
         self.num_points = args.num_input_points
+        self.sample_points = 16384
         # self.mesh_dir = os.path.join('data', args.dataset, set_type+'_meshes/')
         self.mesh_dir = os.path.join('/home/xiaoyue/shapenet', args.dataset)
         self.missing_percent = args.missing_percent
@@ -46,8 +47,8 @@ class MeshDataset(data.Dataset):
             obj_path = os.path.join(self.mesh_dir, subdir, "models/model_normalized.obj")
             mesh = trimesh.load_mesh(obj_path)
 
-            # Step 1: 在表面均匀采样 num_points 个点
-            points = mesh.sample(self.num_points)
+            # Step 1: 在表面均匀采样 sample_points 个点
+            points = mesh.sample(self.sample_points)
             # print(points.shape)
             # breakpoint()
 

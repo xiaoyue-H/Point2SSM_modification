@@ -182,9 +182,9 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
 
     with torch.no_grad():
         ######################################################
-        random_sample = None  # 用于存储随机样本
-        random_recon = None  # 用于存储该样本的网络输出
-        random_name = None
+        random_pc_sample = None  # 用于存储随机样本
+        random_recon1 = None  # 用于存储该样本的网络输出
+        random_name1 = None
         ######################################################
         for i, data in enumerate(dataloader_test):
             if args.model_name[:3] == 'dpc':
@@ -201,9 +201,10 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
             for k, v in val_loss_meters.items():
                 v.update(result_dict[k].mean().item())
 
-                if random_sample is None:
+                if random_pc_sample is None:
                     random_numbers = random.sample(range(0, 5 + 1), 2)
-                    random_sample = pc[random_numbers[0]].cpu().numpy()  # 原始点云
+                    random_gt_sample = gt[random_numbers[0]].cpu().numpy()  # 原始groundtruth点云
+                    random_pc_sample = pc[random_numbers[0]].cpu().numpy()  # 原始parcial点云
                     random_recon1 = result_dict["recon"][random_numbers[0]].cpu().numpy()  # 生成的点云
                     random_name1 = names[random_numbers[0]]  # 记录名称
                     random_recon2 = result_dict["recon"][random_numbers[1]].cpu().numpy()  # 生成的点云
@@ -219,20 +220,43 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
         #######################################################
 
         # ✅ 如果有选取的随机样本，则进行可视化
-        if random_sample is not None:
-            fig = plt.figure(figsize=(18, 6))
+        if random_pc_sample is not None:
+            fig = plt.figure(figsize=(24, 6))
 
-            # 原始点云
-            ax1 = fig.add_subplot(131, projection='3d')
-            color1 = normalize_coordinates_to_rgb(random_sample)
-            ax1.scatter(random_sample[:, 0], random_sample[:, 1], random_sample[:, 2], c=color1, marker='o', s=100)
+            # 原始gt点云
+            ax0 = fig.add_subplot(141, projection='3d')
+            color0 = normalize_coordinates_to_rgb(random_gt_sample)
+            ax0.scatter(random_gt_sample[:, 0], random_gt_sample[:, 1], random_gt_sample[:, 2], c=color0, marker='o', s=100)
+            ax0.set_title(f'Original: {random_name1}')
+            ax0.set_xlabel('X')
+            ax0.set_ylabel('Y')
+            ax0.set_zlabel('Z')
+            x_min, x_max = np.min(random_gt_sample[:, 0]), np.max(random_gt_sample[:, 0])
+            y_min, y_max = np.min(random_gt_sample[:, 1]), np.max(random_gt_sample[:, 1])
+            z_min, z_max = np.min(random_gt_sample[:, 2]), np.max(random_gt_sample[:, 2])
+
+            max_range = max(x_max - x_min, y_max - y_min, z_max - z_min) / 2.0
+
+            mid_x = (x_max + x_min) / 2.0
+            mid_y = (y_max + y_min) / 2.0
+            mid_z = (z_max + z_min) / 2.0
+
+            ax0.set_xlim(mid_x - max_range, mid_x + max_range)
+            ax0.set_ylim(mid_y - max_range, mid_y + max_range)
+            ax0.set_zlim(mid_z - max_range, mid_z + max_range)
+            ax0.set_box_aspect([1, 1, 1])
+
+            # 原始pc点云
+            ax1 = fig.add_subplot(142, projection='3d')
+            color1 = normalize_coordinates_to_rgb(random_pc_sample)
+            ax1.scatter(random_pc_sample[:, 0], random_pc_sample[:, 1], random_pc_sample[:, 2], c=color1, marker='o', s=100)
             ax1.set_title(f'Original: {random_name1}')
             ax1.set_xlabel('X')
             ax1.set_ylabel('Y')
             ax1.set_zlabel('Z')
-            x_min, x_max = np.min(random_sample[:, 0]), np.max(random_sample[:, 0])
-            y_min, y_max = np.min(random_sample[:, 1]), np.max(random_sample[:, 1])
-            z_min, z_max = np.min(random_sample[:, 2]), np.max(random_sample[:, 2])
+            x_min, x_max = np.min(random_pc_sample[:, 0]), np.max(random_pc_sample[:, 0])
+            y_min, y_max = np.min(random_pc_sample[:, 1]), np.max(random_pc_sample[:, 1])
+            z_min, z_max = np.min(random_pc_sample[:, 2]), np.max(random_pc_sample[:, 2])
 
             max_range = max(x_max - x_min, y_max - y_min, z_max - z_min) / 2.0
 
@@ -246,7 +270,7 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
             ax1.set_box_aspect([1, 1, 1])
 
             # 生成点云
-            ax2 = fig.add_subplot(132, projection='3d')
+            ax2 = fig.add_subplot(143, projection='3d')
             color2 = normalize_coordinates_to_rgb(random_recon1)
             ax2.scatter(random_recon1[:, 0], random_recon1[:, 1], random_recon1[:, 2], c=color2, marker='o', s=100)
             ax2.set_title(f'Reconstructed: {random_name1}')
@@ -269,7 +293,7 @@ def val(net, curr_epoch_num, val_loss_meters, dataloader_test, best_epoch_losses
             ax2.set_box_aspect([1, 1, 1])
 
             # 生成点云
-            ax3 = fig.add_subplot(133, projection='3d')
+            ax3 = fig.add_subplot(144, projection='3d')
             ax3.scatter(random_recon2[:, 0], random_recon2[:, 1], random_recon2[:, 2], c=color2, marker='o', s=100)
             ax3.set_title(f'Reconstructed: {random_name2}')
             ax3.set_xlabel('X')
